@@ -734,33 +734,98 @@
     margin: 0 0 28px;
   }
 
-  .google-signin-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    justify-content: center;
-    padding: 12px 22px;
+  /* ===== Email/password form ===== */
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    text-align: left;
+  }
+
+  .auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .auth-field label {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-soft);
+  }
+
+  .auth-field input {
+    font-family: 'Manrope', sans-serif;
+    font-size: 14.5px;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
     background: #fff;
     color: var(--ink);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    font-family: inherit;
-    font-size: 14.5px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .google-signin-btn:hover { border-color: var(--ink); background: rgba(26, 31, 46, 0.02); }
-  .google-signin-btn:active { transform: translateY(1px); }
+
+  .auth-field input:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(26, 31, 46, 0.08);
+  }
+
+  .password-hint {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    margin-top: 2px;
+  }
+
+  .auth-submit {
+    width: 100%;
+    margin-top: 4px;
+  }
 
   .login-error {
-    margin: 14px 0 0;
+    margin: 0;
     color: var(--accent);
     font-size: 13px;
-    font-style: italic;
-    font-family: 'Fraunces', serif;
+    font-family: 'Manrope', sans-serif;
+    text-align: center;
+    padding: 8px 10px;
+    background: var(--accent-soft);
+    border-radius: 6px;
   }
+
+  .login-success {
+    margin: 0;
+    color: #2a5d3a;
+    font-size: 13px;
+    font-family: 'Manrope', sans-serif;
+    text-align: center;
+    padding: 8px 10px;
+    background: var(--sage-soft);
+    border-radius: 6px;
+  }
+
+  .auth-links {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+    font-size: 13px;
+  }
+
+  .auth-links a {
+    color: var(--ink-soft);
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-underline-offset: 3px;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+  }
+  .auth-links a:hover { color: var(--ink); text-decoration-color: var(--ink); }
 
   /* ===== User bar in header ===== */
   header {
@@ -772,13 +837,6 @@
     align-items: center;
     gap: 10px;
     margin-left: auto;
-  }
-
-  .user-photo {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 1px solid var(--line);
   }
 
   .user-name {

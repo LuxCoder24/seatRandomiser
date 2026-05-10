@@ -1,7 +1,10 @@
 // ===== Firebase imports =====
   import {
-    auth, db, googleProvider,
-    signInWithPopup, signOut, onAuthStateChanged,
+    auth, db,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    sendPasswordResetEmail,
+    signOut, onAuthStateChanged,
     doc, getDoc, setDoc
   } from './firebase-init.js';
 
@@ -883,18 +886,103 @@
   }
 
   // ===== Auth flow =====
-  async function handleSignIn() {
-    const errEl = document.getElementById('login-error');
-    if (errEl) errEl.hidden = true;
+  // Three modes: 'signin' | 'register' | 'reset'
+  let authMode = 'signin';
+
+  const AUTH_TEXT = {
+    signin:   { subtitle: 'Sign in to access your saved classes.', submit: 'Sign In', autocomplete: 'current-password' },
+    register: { subtitle: 'Create an account to save classes in the cloud.', submit: 'Create Account', autocomplete: 'new-password' },
+    reset:    { subtitle: "Enter your email and we'll send you a reset link.", submit: 'Send Reset Email', autocomplete: 'email' },
+  };
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    const t = AUTH_TEXT[mode];
+    document.getElementById('auth-subtitle').textContent = t.subtitle;
+    document.getElementById('auth-submit').textContent = t.submit;
+
+    // Show/hide password field for reset mode
+    const passField = document.getElementById('password-field');
+    passField.hidden = (mode === 'reset');
+
+    // Password hint only for register
+    document.getElementById('password-hint').hidden = (mode !== 'register');
+
+    // Update autocomplete to help password managers
+    const pwInput = document.getElementById('auth-password');
+    pwInput.setAttribute('autocomplete', t.autocomplete);
+    pwInput.value = ''; // clear password between modes
+
+    // Show the right set of links
+    document.getElementById('signin-links').hidden = (mode !== 'signin');
+    document.getElementById('register-links').hidden = (mode !== 'register');
+    document.getElementById('reset-links').hidden = (mode !== 'reset');
+
+    // Clear any previous messages
+    document.getElementById('login-error').hidden = true;
+    document.getElementById('login-success').hidden = true;
+  }
+
+  function showAuthError(msg) {
+    const err = document.getElementById('login-error');
+    err.textContent = msg;
+    err.hidden = false;
+    document.getElementById('login-success').hidden = true;
+  }
+  function showAuthSuccess(msg) {
+    const ok = document.getElementById('login-success');
+    ok.textContent = msg;
+    ok.hidden = false;
+    document.getElementById('login-error').hidden = true;
+  }
+
+  // Translate Firebase auth error codes into friendly messages
+  function friendlyAuthError(code) {
+    switch (code) {
+      case 'auth/invalid-email': return 'That email address doesn\'t look right.';
+      case 'auth/user-not-found': return 'No account exists with that email.';
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential': return 'Email or password is incorrect.';
+      case 'auth/email-already-in-use': return 'An account with that email already exists. Try signing in instead.';
+      case 'auth/weak-password': return 'Password must be at least 6 characters.';
+      case 'auth/too-many-requests': return 'Too many failed attempts. Try again in a few minutes.';
+      case 'auth/network-request-failed': return 'No internet connection. Check your network.';
+      case 'auth/missing-password': return 'Please enter your password.';
+      default: return 'Sign-in failed: ' + code;
+    }
+  }
+
+  async function handleAuthSubmit() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+
+    if (!email) { showAuthError('Please enter your email address.'); return; }
+
+    const submitBtn = document.getElementById('auth-submit');
+    submitBtn.disabled = true;
+
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (e) {
-      console.error('Sign-in failed:', e);
-      if (errEl) {
-        // Show the actual error code so we can debug
-        errEl.textContent = 'Sign-in failed: ' + (e.code || e.message || 'unknown error');
-        errEl.hidden = false;
+      if (authMode === 'signin') {
+        if (!password) { showAuthError('Please enter your password.'); return; }
+        await signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged handles the rest
+      } else if (authMode === 'register') {
+        if (!password || password.length < 6) {
+          showAuthError('Password must be at least 6 characters.');
+          return;
+        }
+        await createUserWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged handles the rest
+      } else if (authMode === 'reset') {
+        await sendPasswordResetEmail(auth, email);
+        showAuthSuccess('Reset email sent. Check your inbox (and spam folder).');
+        document.getElementById('auth-email').value = '';
       }
+    } catch (e) {
+      console.error('Auth error:', e);
+      showAuthError(friendlyAuthError(e.code || e.message));
+    } finally {
+      submitBtn.disabled = false;
     }
   }
 
@@ -916,12 +1004,7 @@
     document.getElementById('login-overlay').hidden = true;
     document.getElementById('app-content').hidden = false;
     const nameEl = document.getElementById('user-name');
-    if (nameEl) nameEl.textContent = user.displayName || user.email || 'Signed in';
-    const photoEl = document.getElementById('user-photo');
-    if (photoEl && user.photoURL) {
-      photoEl.src = user.photoURL;
-      photoEl.hidden = false;
-    }
+    if (nameEl) nameEl.textContent = user.email || 'Signed in';
   }
 
   function clearLocalState() {
@@ -972,8 +1055,32 @@
     }
   });
 
-  // Wire up the login button immediately so it works even before init()
-  document.getElementById('google-signin-btn').addEventListener('click', handleSignIn);
-  // Sign-out button is inside the app content; wire it up too
+  // Wire up the auth form
+  document.getElementById('auth-submit').addEventListener('click', handleAuthSubmit);
+  document.getElementById('to-register-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    setAuthMode('register');
+  });
+  document.getElementById('forgot-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    setAuthMode('reset');
+  });
+  document.querySelectorAll('.back-to-signin').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      setAuthMode('signin');
+    });
+  });
+  // Submit on Enter key in email or password
+  ['auth-email', 'auth-password'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAuthSubmit();
+      }
+    });
+  });
+
+  // Sign-out button
   const signOutBtn = document.getElementById('signout-btn');
   if (signOutBtn) signOutBtn.addEventListener('click', handleSignOut);
