@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classroom Seat Randomiser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Seat <em>Randomiser</em></h1>
+      <div class="subtitle">Front-to-back · minimum 3 per table where possible</div>
+    </div>
+  </header>
+
+  <div id="storage-warning" class="storage-warning" hidden></div>
+
+  <!-- Class management -->
+  <div class="panel class-panel">
+    <div class="class-bar">
+      <label for="class-select">Class</label>
+      <select id="class-select"><option value="">— New class —</option></select>
+      <span class="dirty-dot" id="dirty-dot" title="Unsaved changes">●</span>
+      <button class="secondary" id="save-class">Save class…</button>
+      <button class="secondary" id="save-class-as">Save as new…</button>
+      <button class="secondary" id="rename-class" disabled>Rename</button>
+      <button class="danger" id="delete-class" disabled>Delete</button>
+    </div>
+  </div>
+
+  <!-- Roster -->
+  <div class="panel roster-panel">
+    <div class="panel-header">
+      <p class="panel-title">
+        Roster <span class="counts" id="counts"></span>
+      </p>
+      <div class="toolbar-right">
+        <button class="ghost" id="all-present" hidden>Mark all present</button>
+        <button class="ghost" id="clear-locks" hidden>Clear all locks</button>
+        <button class="ghost" id="toggle-edit">Edit list</button>
+      </div>
+    </div>
+
+    <div id="edit-section" hidden>
+      <textarea id="names" placeholder="One name per line…
+Alice
+Bob
+Charlie"></textarea>
+      <p class="hint">Tip: paste names from a roster — one per line. Click <strong>Done</strong> when finished.</p>
+    </div>
+
+    <div id="chips-section">
+      <div id="chips" class="chips-grid"></div>
+      <p class="hint" id="chips-hint" hidden>Click a name to mark absent. Names with 🔒 are locked to a specific seat (set in the Seating tab).</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="seating" role="tab">Seating</button>
+    <button class="tab" data-tab="groups" role="tab">Groups</button>
+    <button class="tab" data-tab="coldcall" role="tab">Cold call</button>
+  </div>
+
+  <!-- Seating tab -->
+  <div class="tab-panel" id="tab-seating">
+    <div class="action-row">
+      <button class="primary" id="randomise">Randomise Seats</button>
+      <button class="icon" id="seating-undo" disabled title="Undo (Ctrl+Z)">↶ Undo</button>
+      <button class="icon" id="seating-redo" disabled title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
+      <div class="info" id="seating-info">Click a seat to lock a student to it. Then randomise.</div>
+    </div>
+
+    <div class="classroom-wrap">
+      <div class="classroom" id="classroom">
+        <div class="screen">Screen</div>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-swatch filled"></span> Random seat</span>
+        <span class="legend-item"><span class="legend-swatch locked"></span> 🔒 Locked seat</span>
+        <span class="legend-item"><span class="legend-swatch empty"></span> Empty seat</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Groups tab -->
+  <div class="tab-panel" id="tab-groups" hidden>
+    <div class="action-row">
+      <select id="group-mode">
+        <option value="count">Number of groups</option>
+        <option value="size">Group size</option>
+      </select>
+      <input type="number" id="group-value" min="1" max="40" value="4" />
+      <button class="primary" id="make-groups">Make Groups</button>
+      <button class="icon" id="groups-undo" disabled title="Undo">↶ Undo</button>
+      <button class="icon" id="groups-redo" disabled title="Redo">↷ Redo</button>
+      <div class="info" id="groups-info">Set how many groups (or how big), then make them.</div>
+    </div>
+    <div id="groups-display"></div>
+  </div>
+
+  <!-- Cold call tab -->
+  <div class="tab-panel" id="tab-coldcall" hidden>
+    <div class="action-row">
+      <button class="primary" id="pick-student">Pick a Student</button>
+      <button class="secondary" id="reset-picked">Reset history</button>
+      <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--ink-soft); margin-left: 8px;">
+        <input type="checkbox" id="no-repeats" checked style="margin: 0;" />
+        No repeats until everyone's been picked
+      </label>
+      <div class="info" id="coldcall-info">Picks a random present student.</div>
+    </div>
+    <div class="coldcall-display">
+      <p class="picked-name placeholder" id="picked-name">— click pick —</p>
+      <div class="progress-bar" id="progress-bar" hidden><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <p class="progress-text" id="progress-text" hidden></p>
+      <div class="picked-history" id="picked-history" hidden>
+        <div class="picked-history-label">Already picked this round</div>
+        <div class="picked-history-chips" id="picked-history-chips"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Seat lock dialog -->
+<dialog id="seat-picker">
+  <div class="picker-header">
+    <h3>Lock seat <em><span id="picker-seat-num"></span></em> to:</h3>
+    <button class="ghost" id="picker-close-x" style="font-size: 20px; padding: 0 8px;">×</button>
+  </div>
+  <div class="picker-body">
+    <input type="search" id="picker-search" placeholder="Type to filter…" autocomplete="off" />
+    <div class="picker-options" id="picker-options"></div>
+  </div>
+  <div class="picker-footer">
+    <button class="danger" id="picker-clear">Clear lock</button>
+    <button class="secondary" id="picker-cancel">Cancel</button>
+  </div>
+</dialog>
+
+
+<script src="app.js"></script>
+</body>
+</html>
