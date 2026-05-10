@@ -1,4 +1,11 @@
-// ===== Classroom layout =====
+// ===== Firebase imports =====
+  import {
+    auth, db, googleProvider,
+    signInWithPopup, signOut, onAuthStateChanged,
+    doc, getDoc, setDoc
+  } from './firebase-init.js';
+
+  // ===== Classroom layout =====
   const TABLES = [
     { id: 't1', pos: 'r1', seats: [1, 2, 3, 4] },
     { id: 't2', pos: 'l1', seats: [5, 6, 7, 8] },
@@ -35,33 +42,43 @@
     pickedSet: new Set(),
     pickedOrder: [],
     lastPicked: null,
+
+    // Firebase
+    currentUser: null,
+    isLoading: false,
   };
 
-  // ===== Storage (browser localStorage) =====
-  function loadFromStorage() {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      showStorageWarning('localStorage isn\'t available in this browser — saved classes won\'t persist.');
-      return;
-    }
-    state.storageOK = true;
+  // ===== Storage (Firebase Firestore) =====
+  // Each user's classes live in a single document at users/{uid}.
+  // Document shape: { classes: [ {id, name, students, locks}, ... ] }
+
+  async function loadFromStorage() {
+    if (!state.currentUser) return;
+    state.isLoading = true;
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) state.classes = parsed;
+      const userDoc = doc(db, 'users', state.currentUser.uid);
+      const snap = await getDoc(userDoc);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.classes)) state.classes = data.classes;
       }
+      state.storageOK = true;
     } catch (e) {
-      // Corrupted or no data — start fresh.
-      console.warn('Could not load saved classes:', e);
+      console.error('Could not load classes from Firestore:', e);
+      showStorageWarning('Could not load your saved classes. Check your internet connection.');
+    } finally {
+      state.isLoading = false;
     }
   }
 
-  function persistClasses() {
-    if (!state.storageOK) return;
+  async function persistClasses() {
+    if (!state.currentUser || !state.storageOK) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.classes));
+      const userDoc = doc(db, 'users', state.currentUser.uid);
+      await setDoc(userDoc, { classes: state.classes }, { merge: true });
     } catch (e) {
-      showInfo('seating', 'Could not save changes — storage error.', true);
+      console.error('Could not save to Firestore:', e);
+      showInfo('seating', 'Could not save — check your internet connection.', true);
     }
   }
 
@@ -865,5 +882,96 @@
     updateHistoryButtons();
   }
 
-  loadFromStorage();
-  init();
+  // ===== Auth flow =====
+  async function handleSignIn() {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      console.error('Sign-in failed:', e);
+      const errEl = document.getElementById('login-error');
+      if (errEl) {
+        errEl.textContent = 'Sign-in failed. Try again.';
+        errEl.hidden = false;
+      }
+    }
+  }
+
+  async function handleSignOut() {
+    if (!confirm('Sign out?')) return;
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error('Sign-out failed:', e);
+    }
+  }
+
+  function showLoginScreen() {
+    document.getElementById('login-overlay').hidden = false;
+    document.getElementById('app-content').hidden = true;
+  }
+
+  function showApp(user) {
+    document.getElementById('login-overlay').hidden = true;
+    document.getElementById('app-content').hidden = false;
+    const nameEl = document.getElementById('user-name');
+    if (nameEl) nameEl.textContent = user.displayName || user.email || 'Signed in';
+    const photoEl = document.getElementById('user-photo');
+    if (photoEl && user.photoURL) {
+      photoEl.src = user.photoURL;
+      photoEl.hidden = false;
+    }
+  }
+
+  function clearLocalState() {
+    state.classes = [];
+    state.currentClassId = null;
+    state.absent.clear();
+    state.locks = {};
+    state.currentSeating = null;
+    state.seatingPast = [];
+    state.seatingFuture = [];
+    state.currentGroups = null;
+    state.groupsPast = [];
+    state.groupsFuture = [];
+    state.pickedSet = new Set();
+    state.pickedOrder = [];
+    state.lastPicked = null;
+  }
+
+  let initialised = false;
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      state.currentUser = user;
+      showApp(user);
+      await loadFromStorage();
+      if (!initialised) {
+        init();
+        initialised = true;
+      } else {
+        // Re-render with the new user's data
+        renderClassSelector();
+        renderChips();
+        renderSeating();
+        renderColdCall();
+        setEditMode(getNames().length === 0);
+      }
+    } else {
+      state.currentUser = null;
+      state.storageOK = false;
+      clearLocalState();
+      if (initialised) {
+        renderClassSelector();
+        renderChips();
+        renderSeating();
+        renderColdCall();
+      }
+      showLoginScreen();
+    }
+  });
+
+  // Wire up the login button immediately so it works even before init()
+  document.getElementById('google-signin-btn').addEventListener('click', handleSignIn);
+  // Sign-out button is inside the app content; wire it up too
+  const signOutBtn = document.getElementById('signout-btn');
+  if (signOutBtn) signOutBtn.addEventListener('click', handleSignOut);

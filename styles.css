@@ -690,3 +690,100 @@
     .class-panel, .roster-panel, .action-row, .tabs { display: none; }
     .legend { display: none; }
   }
+
+  /* ===== Login overlay ===== */
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(200, 85, 61, 0.06) 0, transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(125, 143, 105, 0.07) 0, transparent 45%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 1000;
+  }
+
+  .login-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 40px 36px;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 1px 0 rgba(26, 31, 46, 0.04), 0 20px 50px -16px rgba(26, 31, 46, 0.18);
+  }
+
+  .login-card h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 34px;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .login-card h1 em { font-style: italic; color: var(--accent); font-weight: 500; }
+
+  .login-subtitle {
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    margin: 0 0 28px;
+  }
+
+  .google-signin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    justify-content: center;
+    padding: 12px 22px;
+    background: #fff;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .google-signin-btn:hover { border-color: var(--ink); background: rgba(26, 31, 46, 0.02); }
+  .google-signin-btn:active { transform: translateY(1px); }
+
+  .login-error {
+    margin: 14px 0 0;
+    color: var(--accent);
+    font-size: 13px;
+    font-style: italic;
+    font-family: 'Fraunces', serif;
+  }
+
+  /* ===== User bar in header ===== */
+  header {
+    align-items: center;
+  }
+
+  .user-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  .user-photo {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+  }
+
+  .user-name {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+  }
