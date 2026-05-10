@@ -1,7 +1,7 @@
 // ===== Firebase imports =====
   import {
     auth, db, googleProvider,
-    signInWithPopup, signOut, onAuthStateChanged,
+    signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
     doc, getDoc, setDoc
   } from './firebase-init.js';
 
@@ -885,7 +885,8 @@
   // ===== Auth flow =====
   async function handleSignIn() {
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithRedirect(auth, googleProvider);
+      // After redirect, the page will reload and onAuthStateChanged will fire.
     } catch (e) {
       console.error('Sign-in failed:', e);
       const errEl = document.getElementById('login-error');
@@ -939,6 +940,16 @@
   }
 
   let initialised = false;
+
+  // Handle the redirect back from Google sign-in (if any)
+  getRedirectResult(auth).catch(e => {
+    console.error('Redirect sign-in failed:', e);
+    const errEl = document.getElementById('login-error');
+    if (errEl) {
+      errEl.textContent = 'Sign-in failed. Try again.';
+      errEl.hidden = false;
+    }
+  });
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {

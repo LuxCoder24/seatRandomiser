@@ -3,7 +3,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -13,7 +14,7 @@ import {
   getDoc,
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-
+ 
 // ===== PASTE YOUR FIREBASE CONFIG HERE =====
 const firebaseConfig = {
   apiKey: "AIzaSyBi41ksoX_bFkp91V1sGRVVf1-aYaX2CTc",
@@ -26,9 +27,9 @@ const firebaseConfig = {
   measurementId: "G-Y7ZYRTZ245"
 };
 // ===========================================
-
+ 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
-export { signInWithPopup, signOut, onAuthStateChanged, doc, getDoc, setDoc };
+export { signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, doc, getDoc, setDoc };
