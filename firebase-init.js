@@ -16,12 +16,14 @@ import {
 
 // ===== PASTE YOUR FIREBASE CONFIG HERE =====
 const firebaseConfig = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_AUTH_DOMAIN",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_STORAGE_BUCKET",
-  messagingSenderId: "PASTE_MESSAGING_SENDER_ID",
-  appId: "PASTE_APP_ID"
+  apiKey: "AIzaSyBi41ksoX_bFkp91V1sGRVVf1-aYaX2CTc",
+  authDomain: "seat-chooser-e4570.firebaseapp.com",
+  databaseURL: "https://seat-chooser-e4570-default-rtdb.firebaseio.com",
+  projectId: "seat-chooser-e4570",
+  storageBucket: "seat-chooser-e4570.firebasestorage.app",
+  messagingSenderId: "409291819141",
+  appId: "1:409291819141:web:64e398ede2ebd486b781ec",
+  measurementId: "G-Y7ZYRTZ245"
 };
 // ===========================================
 
