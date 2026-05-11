@@ -16,6 +16,9 @@
 
   * { box-sizing: border-box; }
 
+  /* The HTML hidden attribute should always win, even on flex/grid elements */
+  [hidden] { display: none !important; }
+
   html, body {
     margin: 0;
     padding: 0;
