@@ -742,6 +742,13 @@
     text-align: left;
   }
 
+  /* Make the HTML hidden attribute work even on flex/grid elements */
+  .auth-form [hidden],
+  .auth-field[hidden],
+  .auth-links[hidden] {
+    display: none !important;
+  }
+
   .auth-field {
     display: flex;
     flex-direction: column;

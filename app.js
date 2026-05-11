@@ -901,9 +901,11 @@
     document.getElementById('auth-subtitle').textContent = t.subtitle;
     document.getElementById('auth-submit').textContent = t.submit;
 
+    // Re-enable the submit button (in case it was stuck disabled)
+    document.getElementById('auth-submit').disabled = false;
+
     // Show/hide password field for reset mode
-    const passField = document.getElementById('password-field');
-    passField.hidden = (mode === 'reset');
+    document.getElementById('password-field').hidden = (mode === 'reset');
 
     // Password hint only for register
     document.getElementById('password-hint').hidden = (mode !== 'register');
@@ -913,10 +915,9 @@
     pwInput.setAttribute('autocomplete', t.autocomplete);
     pwInput.value = ''; // clear password between modes
 
-    // Show the right set of links
+    // Show the right set of links (single signin-links or back-link)
     document.getElementById('signin-links').hidden = (mode !== 'signin');
-    document.getElementById('register-links').hidden = (mode !== 'register');
-    document.getElementById('reset-links').hidden = (mode !== 'reset');
+    document.getElementById('back-link').hidden = (mode === 'signin');
 
     // Clear any previous messages
     document.getElementById('login-error').hidden = true;
@@ -959,30 +960,42 @@
     if (!email) { showAuthError('Please enter your email address.'); return; }
 
     const submitBtn = document.getElementById('auth-submit');
+    const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
+    submitBtn.textContent = (authMode === 'reset') ? 'Sending…' : 'Working…';
+    document.getElementById('login-error').hidden = true;
+    document.getElementById('login-success').hidden = true;
+
+    console.log('[auth] Submitting in mode:', authMode, 'for email:', email);
 
     try {
       if (authMode === 'signin') {
         if (!password) { showAuthError('Please enter your password.'); return; }
-        await signInWithEmailAndPassword(auth, email, password);
-        // onAuthStateChanged handles the rest
+        console.log('[auth] Calling signInWithEmailAndPassword');
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        console.log('[auth] Sign-in succeeded for:', cred.user.email);
+        // onAuthStateChanged will fire and show the app
       } else if (authMode === 'register') {
         if (!password || password.length < 6) {
           showAuthError('Password must be at least 6 characters.');
           return;
         }
-        await createUserWithEmailAndPassword(auth, email, password);
-        // onAuthStateChanged handles the rest
+        console.log('[auth] Calling createUserWithEmailAndPassword');
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        console.log('[auth] Account created for:', cred.user.email, '— now auto-signed-in');
+        // onAuthStateChanged will fire and show the app
       } else if (authMode === 'reset') {
+        console.log('[auth] Sending password reset email');
         await sendPasswordResetEmail(auth, email);
         showAuthSuccess('Reset email sent. Check your inbox (and spam folder).');
         document.getElementById('auth-email').value = '';
       }
     } catch (e) {
-      console.error('Auth error:', e);
+      console.error('[auth] Error:', e.code, e.message);
       showAuthError(friendlyAuthError(e.code || e.message));
     } finally {
       submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
     }
   }
 
@@ -1026,10 +1039,12 @@
   let initialised = false;
 
   onAuthStateChanged(auth, async (user) => {
+    console.log('[auth] State changed. User:', user ? user.email : 'signed out');
     if (user) {
       state.currentUser = user;
       showApp(user);
       await loadFromStorage();
+      console.log('[auth] Loaded classes from Firestore. Count:', state.classes.length);
       if (!initialised) {
         init();
         initialised = true;
@@ -1065,11 +1080,9 @@
     e.preventDefault();
     setAuthMode('reset');
   });
-  document.querySelectorAll('.back-to-signin').forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      setAuthMode('signin');
-    });
+  document.getElementById('back-to-signin').addEventListener('click', (e) => {
+    e.preventDefault();
+    setAuthMode('signin');
   });
   // Submit on Enter key in email or password
   ['auth-email', 'auth-password'].forEach(id => {
