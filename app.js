@@ -27,6 +27,7 @@
     currentClassId: null,
     absent: new Set(),
     locks: {},         // seatNumber (string) -> studentName  -- tied to current loaded class
+    blocked: new Set(), // seatNumbers (numbers) that can't be used -- tied to current loaded class
     editing: false,
     storageOK: false,
     activeTab: 'seating',
@@ -116,9 +117,12 @@
   function isDirty() {
     const names = getNames();
     const c = findCurrentClass();
-    if (!c) return names.length > 0 || Object.keys(state.locks).length > 0;
+    if (!c) return names.length > 0 || Object.keys(state.locks).length > 0 || state.blocked.size > 0;
     if (JSON.stringify(c.students) !== JSON.stringify(names)) return true;
-    return JSON.stringify(c.locks || {}) !== JSON.stringify(state.locks);
+    if (JSON.stringify(c.locks || {}) !== JSON.stringify(state.locks)) return true;
+    const savedBlocked = (c.blocked || []).slice().sort();
+    const currentBlocked = [...state.blocked].sort();
+    return JSON.stringify(savedBlocked) !== JSON.stringify(currentBlocked);
   }
 
   // ===== Rendering =====
@@ -135,7 +139,7 @@
         seat.className = 'seat';
         seat.dataset.seat = s;
         seat.innerHTML = `<span class="num">${s}</span>`;
-        seat.addEventListener('click', () => openSeatPicker(s));
+        seat.addEventListener('click', () => handleSeatClick(s));
         div.appendChild(seat);
       }
       classroom.appendChild(div);
@@ -150,28 +154,38 @@
     for (const t of TABLES) {
       const tableEl = $(t.id);
       let anyHere = false;
+      let hasUsableSeats = false;
       for (const s of t.seats) {
         const seatEl = tableEl.querySelector(`[data-seat="${s}"]`);
         seatEl.className = 'seat';
         seatEl.innerHTML = `<span class="num">${s}</span>`;
 
+        const isBlocked = state.blocked.has(s);
         const lockedName = state.locks[String(s)];
         const seatedName = seating[String(s)];
 
-        if (lockedName && allNames.has(lockedName)) {
-          seatEl.classList.add('locked');
-          if (state.absent.has(lockedName)) seatEl.classList.add('absent-marked');
-          seatEl.innerHTML =
-            `<span class="num">${s}</span><span class="lock-icon">🔒</span>${escapeHtml(lockedName)}`;
-          anyHere = true;
-        } else if (seatedName && allNames.has(seatedName)) {
-          seatEl.classList.add('filled');
-          if (state.absent.has(seatedName)) seatEl.classList.add('absent-marked');
-          seatEl.innerHTML = `<span class="num">${s}</span>${escapeHtml(seatedName)}`;
-          anyHere = true;
+        if (isBlocked) {
+          seatEl.classList.add('blocked');
+          seatEl.innerHTML = `<span class="num">${s}</span><span class="blocked-icon">⊘</span>`;
+        } else {
+          hasUsableSeats = true;
+          if (lockedName && allNames.has(lockedName)) {
+            seatEl.classList.add('locked');
+            if (state.absent.has(lockedName)) seatEl.classList.add('absent-marked');
+            seatEl.innerHTML =
+              `<span class="num">${s}</span><span class="lock-icon">🔒</span>${escapeHtml(lockedName)}`;
+            anyHere = true;
+          } else if (seatedName && allNames.has(seatedName)) {
+            seatEl.classList.add('filled');
+            if (state.absent.has(seatedName)) seatEl.classList.add('absent-marked');
+            seatEl.innerHTML = `<span class="num">${s}</span>${escapeHtml(seatedName)}`;
+            anyHere = true;
+          }
         }
       }
-      tableEl.classList.toggle('unused', !anyHere);
+      // A table is "unused" if no students are seated AND it has at least one usable seat.
+      // A fully-blocked table is rendered as fully-blocked, not "unused/dashed".
+      tableEl.classList.toggle('unused', !anyHere && hasUsableSeats);
     }
   }
 
@@ -212,6 +226,7 @@
     const hint = $('chips-hint');
     const allPresentBtn = $('all-present');
     const clearLocksBtn = $('clear-locks');
+    const clearBlocksBtn = $('clear-blocks');
 
     container.innerHTML = '';
     if (names.length === 0) {
@@ -219,6 +234,7 @@
       hint.hidden = true;
       allPresentBtn.hidden = true;
       clearLocksBtn.hidden = true;
+      if (clearBlocksBtn) clearBlocksBtn.hidden = state.blocked.size === 0;
     } else {
       hint.hidden = false;
       for (const name of names) {
@@ -240,18 +256,21 @@
       }
       allPresentBtn.hidden = state.absent.size === 0;
       clearLocksBtn.hidden = Object.keys(state.locks).length === 0;
+      if (clearBlocksBtn) clearBlocksBtn.hidden = state.blocked.size === 0;
     }
 
     // Counts
     const present = names.filter(n => !state.absent.has(n)).length;
     const absentCount = names.length - present;
     const lockCount = Object.keys(state.locks).length;
+    const blockedCount = state.blocked.size;
     const countsEl = $('counts');
     let parts = [];
     if (names.length > 0) {
       if (absentCount === 0) parts.push(`${present} student${present === 1 ? '' : 's'}`);
       else parts.push(`${present} present, <span class="absent-count">${absentCount} absent</span>`);
       if (lockCount > 0) parts.push(`<span class="lock-count">${lockCount} 🔒</span>`);
+      if (blockedCount > 0) parts.push(`<span class="blocked-count">${blockedCount} ⊘</span>`);
     }
     countsEl.innerHTML = parts.length ? '— ' + parts.join(' · ') : '';
 
@@ -273,6 +292,7 @@
     const c = findCurrentClass();
     setNames(c ? c.students : []);
     state.locks = c && c.locks ? { ...c.locks } : {};
+    state.blocked = new Set(c && Array.isArray(c.blocked) ? c.blocked : []);
     state.absent.clear();
     // Reset history & current view since this is a new class
     state.currentSeating = null;
@@ -302,6 +322,7 @@
       const c = findCurrentClass();
       c.students = names;
       c.locks = { ...state.locks };
+      c.blocked = [...state.blocked];
       await persistClasses();
       renderChips();
       showToast('seating', `Saved "${c.name}".`);
@@ -319,7 +340,7 @@
       if (!confirm(`A class called "${name}" already exists. Save another with the same name?`)) return;
     }
     const id = uid();
-    state.classes.push({ id, name, students: names, locks: { ...state.locks } });
+    state.classes.push({ id, name, students: names, locks: { ...state.locks }, blocked: [...state.blocked] });
     state.currentClassId = id;
     await persistClasses();
     renderClassSelector();
@@ -346,6 +367,7 @@
     state.currentClassId = null;
     setNames([]);
     state.locks = {};
+    state.blocked = new Set();
     state.absent.clear();
     state.currentSeating = null;
     state.seatingPast = [];
@@ -360,15 +382,34 @@
 
   // ===== Lock picker =====
   let pickerSeatNum = null;
+  function handleSeatClick(seatNum) {
+    if (state.blocked.has(seatNum)) {
+      // Quick unblock without opening picker
+      if (confirm(`Seat ${seatNum} is blocked. Unblock it?`)) {
+        state.blocked.delete(seatNum);
+        persistClasses();
+        renderChips();
+        renderSeating();
+        showInfo('seating', `Seat <strong>${seatNum}</strong> unblocked.`);
+      }
+      return;
+    }
+    openSeatPicker(seatNum);
+  }
+
   function openSeatPicker(seatNum) {
     if (state.activeTab !== 'seating') {
-      // switch to seating tab
       switchTab('seating');
     }
     pickerSeatNum = seatNum;
     $('picker-seat-num').textContent = seatNum;
     $('picker-search').value = '';
     renderPickerOptions('');
+
+    // Show "Clear lock" only if this seat currently has a lock
+    const isLocked = state.locks[String(seatNum)] !== undefined;
+    $('picker-clear').hidden = !isLocked;
+
     const dlg = $('seat-picker');
     if (typeof dlg.showModal === 'function') dlg.showModal();
     else dlg.setAttribute('open', '');
@@ -434,28 +475,42 @@
     showInfo('seating', `Unlocked seat <strong>${seatNum}</strong> (was <strong>${escapeHtml(name)}</strong>).`);
   }
 
-  // ===== Seat assignment with locks =====
-  // Pick used tables and per-table counts so we fill front-to-back, force tables
-  // that contain locks to be used, and keep every used table at >= 3 where possible.
-  function planAssignment(presentCount, locksPerTable) {
-    // locksPerTable: array same length as TABLES, count of locked-and-present students per table
+  function blockSeatAt(seatNum) {
+    // If there's a lock here, clear it first
+    const key = String(seatNum);
+    if (state.locks[key]) delete state.locks[key];
+    state.blocked.add(seatNum);
+    persistClasses();
+    renderChips();
+    renderSeating();
+    showInfo('seating', `Seat <strong>${seatNum}</strong> blocked.`);
+  }
+
+  // ===== Seat assignment with locks and blocked seats =====
+  // Plan which tables to use and how many students each gets.
+  // - usableSeatsPerTable: number of non-blocked seats per table (effective capacity)
+  // - locksPerTable: number of locked (and present) students already assigned to seats in each table
+  function planAssignment(presentCount, usableSeatsPerTable, locksPerTable) {
     const forced = TABLES.map((_, i) => locksPerTable[i] > 0);
     const usedIdx = [];
     let cap = 0;
     for (let i = 0; i < TABLES.length; i++) {
       if (forced[i] || cap < presentCount) {
+        // Don't include tables with zero usable seats unless forced by a lock
+        // (a locked seat is by definition usable so this only excludes fully-blocked tables with no locks)
+        if (usableSeatsPerTable[i] === 0 && !forced[i]) continue;
         usedIdx.push(i);
-        cap += TABLES[i].seats.length;
+        cap += usableSeatsPerTable[i];
       }
     }
 
     // Initial counts: each table has at least its lock count, then fill remaining
     // capacity front-to-back through the used tables.
-    const counts = usedIdx.map(i => locksPerTable[i]);
+    const counts = usedIdx.map((i, k) => locksPerTable[i]);
     let rem = presentCount - counts.reduce((a, b) => a + b, 0);
     for (let k = 0; k < usedIdx.length && rem > 0; k++) {
       const i = usedIdx[k];
-      const space = TABLES[i].seats.length - counts[k];
+      const space = usableSeatsPerTable[i] - counts[k];
       const take = Math.min(rem, space);
       counts[k] += take;
       rem -= take;
@@ -463,8 +518,12 @@
 
     // Redistribute toward any under-3 used table, drawing from over-3 donors
     // who still have non-locked headroom (counts > locks).
+    // Only count a table as a candidate for ≥3 if it has at least 3 usable seats —
+    // a 2-seat-effective table can never satisfy the rule.
     while (true) {
-      const poorK = counts.findIndex((c, k) => c < 3 && c < TABLES[usedIdx[k]].seats.length);
+      const poorK = counts.findIndex((c, k) =>
+        c < 3 && c < usableSeatsPerTable[usedIdx[k]] && usableSeatsPerTable[usedIdx[k]] >= 3
+      );
       if (poorK === -1) break;
       const donorK = counts.findIndex((c, k) => c > 3 && c > locksPerTable[usedIdx[k]]);
       if (donorK === -1) break;
@@ -478,28 +537,38 @@
   function randomise() {
     const allNames = getNames();
     const present = allNames.filter(n => !state.absent.has(n));
+    const usableTotal = TOTAL_SEATS - state.blocked.size;
 
     if (allNames.length === 0) { showInfo('seating', 'Add some students first.', true); return; }
     if (present.length === 0) { showInfo('seating', 'Everyone is marked absent — no one to seat.', true); state.currentSeating = null; renderSeating(); return; }
-    if (present.length > TOTAL_SEATS) { showInfo('seating', `Too many students (${present.length}). Maximum is ${TOTAL_SEATS}.`, true); return; }
+    if (present.length > usableTotal) {
+      showInfo('seating',
+        `Too many students (${present.length}) for available seats (${usableTotal}). ` +
+        `${state.blocked.size > 0 ? `${state.blocked.size} blocked, ` : ''}max with this setup is ${usableTotal}.`,
+        true);
+      return;
+    }
 
-    // Lock-related sets — only locks for present students apply
+    // Lock-related sets — only locks for present students apply, and only if not blocked
     const lockedSeatToName = {};   // string seatNum -> name
     const lockedNames = new Set();
     for (const [s, n] of Object.entries(state.locks)) {
-      if (present.includes(n)) {
+      if (present.includes(n) && !state.blocked.has(Number(s))) {
         lockedSeatToName[s] = n;
         lockedNames.add(n);
       }
     }
     const unlocked = present.filter(n => !lockedNames.has(n));
 
-    // Per-table lock counts for planning
+    // Per-table counts of usable (non-blocked) seats and locked students
+    const usableSeatsPerTable = TABLES.map(t =>
+      t.seats.filter(s => !state.blocked.has(s)).length
+    );
     const locksPerTable = TABLES.map(t =>
       t.seats.filter(s => lockedSeatToName[String(s)] !== undefined).length
     );
 
-    const { usedIdx, counts } = planAssignment(present.length, locksPerTable);
+    const { usedIdx, counts } = planAssignment(present.length, usableSeatsPerTable, locksPerTable);
 
     // Build the new seating
     const shuffled = shuffle(unlocked);
@@ -511,10 +580,13 @@
       const t = TABLES[i];
       const c = counts[k];
       if (c === 0) continue;
-      if (c < 3) undersized++;
+      // Only count "undersized" against the user if the table CAN hold 3 (it's not a small-by-blocking table)
+      if (c < 3 && usableSeatsPerTable[i] >= 3) undersized++;
 
-      const lockedHere = t.seats.filter(s => lockedSeatToName[String(s)] !== undefined);
-      const openHere = t.seats.filter(s => lockedSeatToName[String(s)] === undefined);
+      // Pool of seats to consider: non-blocked seats only
+      const availableSeats = t.seats.filter(s => !state.blocked.has(s));
+      const lockedHere = availableSeats.filter(s => lockedSeatToName[String(s)] !== undefined);
+      const openHere = availableSeats.filter(s => lockedSeatToName[String(s)] === undefined);
       const needed = c - lockedHere.length;
 
       // Locks first
@@ -805,6 +877,13 @@
       renderChips();
       renderSeating();
     });
+    $('clear-blocks').addEventListener('click', () => {
+      if (!confirm('Unblock all seats for this class?')) return;
+      state.blocked = new Set();
+      persistClasses();
+      renderChips();
+      renderSeating();
+    });
 
     // Tabs
     document.querySelectorAll('.tab').forEach(el => {
@@ -843,6 +922,10 @@
     $('picker-search').addEventListener('input', (e) => renderPickerOptions(e.target.value));
     $('picker-clear').addEventListener('click', () => {
       if (pickerSeatNum != null) clearLockAt(pickerSeatNum);
+      closeSeatPicker();
+    });
+    $('picker-block').addEventListener('click', () => {
+      if (pickerSeatNum != null) blockSeatAt(pickerSeatNum);
       closeSeatPicker();
     });
     $('picker-cancel').addEventListener('click', closeSeatPicker);
@@ -1025,6 +1108,7 @@
     state.currentClassId = null;
     state.absent.clear();
     state.locks = {};
+    state.blocked = new Set();
     state.currentSeating = null;
     state.seatingPast = [];
     state.seatingFuture = [];

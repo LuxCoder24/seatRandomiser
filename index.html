@@ -82,6 +82,7 @@
       <div class="toolbar-right">
         <button class="ghost" id="all-present" hidden>Mark all present</button>
         <button class="ghost" id="clear-locks" hidden>Clear all locks</button>
+        <button class="ghost" id="clear-blocks" hidden>Clear blocked seats</button>
         <button class="ghost" id="toggle-edit">Edit list</button>
       </div>
     </div>
@@ -96,7 +97,7 @@ Charlie"></textarea>
 
     <div id="chips-section">
       <div id="chips" class="chips-grid"></div>
-      <p class="hint" id="chips-hint" hidden>Click a name to mark absent. Names with 🔒 are locked to a specific seat (set in the Seating tab).</p>
+      <p class="hint" id="chips-hint" hidden>Click a name to mark absent. Names with 🔒 are locked to a specific seat. To lock or block seats (e.g. broken desks), click a seat in the Seating tab.</p>
     </div>
   </div>
 
@@ -123,6 +124,7 @@ Charlie"></textarea>
       <div class="legend">
         <span class="legend-item"><span class="legend-swatch filled"></span> Random seat</span>
         <span class="legend-item"><span class="legend-swatch locked"></span> 🔒 Locked seat</span>
+        <span class="legend-item"><span class="legend-swatch blocked"></span> ⊘ Blocked seat</span>
         <span class="legend-item"><span class="legend-swatch empty"></span> Empty seat</span>
       </div>
     </div>
@@ -178,6 +180,7 @@ Charlie"></textarea>
     <div class="picker-options" id="picker-options"></div>
   </div>
   <div class="picker-footer">
+    <button class="secondary" id="picker-block">⊘ Block seat</button>
     <button class="danger" id="picker-clear">Clear lock</button>
     <button class="secondary" id="picker-cancel">Cancel</button>
   </div>
